@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, validates, relationship
 from sqlalchemy.testing.schema import mapped_column
 
 from app.databse import Base
+from app.errors import ImmutableRecordError
 
 
 class Role(str, Enum):
@@ -155,3 +156,44 @@ class VerificationItem(Base):
 
     order: Mapped["CuttingOrder"] = relationship("CuttingOrder", back_populates="items")
     component: Mapped["RecipeComponent"] = relationship("RecipeComponent")
+
+
+
+class VerificationLog(Base):
+    __tablename__ = "verification_logs"
+    __table_args__ = (
+        CheckConstraint(
+            "(decision != 'REJECTED') OR (rejection_note IS NOT NULL AND length(trim(rejection_note)) > 0)",
+            name="check_rejection_note_required_on_rejection",
+        ),
+    )
+
+    id : Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    order_id : Mapped[int] = mapped_column(ForeignKey("cutting_orders.id"), nullable=False)
+    verifier_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    decision : Mapped[Decision] = mapped_column(nullable=False)
+    rejection_note : Mapped[Optional[str]] = mapped_column(Text,nullable=True)
+    wastage_pct : Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2), nullable=False)
+    timestamp : Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(datetime.timezone.utc),
+        nullable=False,
+    )
+
+    order: Mapped["CuttingOrder"] = relationship("CuttingOrder", back_populates="logs")
+    verifier: Mapped["User"] = relationship("User")
+
+    @validates("rejection_note")
+    def validate_rejection_note(self, key: str, rejection_note: Optional[str]) -> Optional[str]:
+        if self.decision == Decision.REJECTED and (not rejection_note or not rejection_note.strip()):
+            raise ValueError("Rejection note is required when decision is REJECTED.")
+        return rejection_note
+
+
+@event.listens_for(VerificationLog, "before_update")
+def prevent_verification_log_update(mapper, connection, target):
+    raise ImmutableRecordError("VerificationLog records are immutable and cannot be updated.")
+
+@event.listens_for(VerificationLog, "before_delete")
+def prevent_verification_log_delete(mapper, connection, target):
+    raise ImmutableRecordError("VerificationLog records are immutable and cannot be deleted.")
