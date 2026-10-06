@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -94,7 +94,7 @@ class RecipeComponent(Base):
     recipe_id : Mapped[int] = mapped_column(ForeignKey("recipes.id"), nullable=False)
     component_name : Mapped[str] = mapped_column(String(255), nullable=False)
     pieces_per_garment : Mapped[int] = mapped_column(nullable=False)
-    image_url : Mapped[str] = mapped_column(String(255), nullable=True)
+    image_url : Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     recipe: Mapped["Recipe"] = relationship("Recipe", back_populates="components")
 
@@ -134,3 +134,24 @@ class CuttingOrder(Base):
     logs: Mapped[List["VerificationLog"]] = relationship(
         "VerificationLog", back_populates="order", cascade="all, delete-orphan"
     )
+
+
+class VerificationItem(Base):
+    """Represents a specific verified component item under a cutting order."""
+
+    __tablename__ = "verification_items"
+    __table_args__ = (
+        UniqueConstraint("order_id", "component_id", name="uq_order_component"),
+        CheckConstraint("expected_qty >= 1", name="check_expected_qty_gte_one"),
+        CheckConstraint("actual_qty IS NULL OR actual_qty >= 0", name="check_actual_qty_non_negative"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("cutting_orders.id"), nullable=False)
+    component_id: Mapped[int] = mapped_column(ForeignKey("recipe_components.id"), nullable=False)
+    expected_qty: Mapped[int] = mapped_column(nullable=False)
+    actual_qty: Mapped[Optional[int]] = mapped_column(nullable=True)
+    status: Mapped[Optional[TrafficFlag]] = mapped_column(SQLEnum(TrafficFlag), nullable=True)
+
+    order: Mapped["CuttingOrder"] = relationship("CuttingOrder", back_populates="items")
+    component: Mapped["RecipeComponent"] = relationship("RecipeComponent")
