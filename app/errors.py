@@ -1,4 +1,8 @@
 from typing import Any,Optional
+from fastapi import Request
+from starlette.responses import JSONResponse
+from streamlit import status
+
 
 class DomainError(Exception):
     code: str = "DOMAIN_ERROR"
@@ -120,4 +124,38 @@ class GateKeeperViolation(Exception):
     code: str = "GATEKEEPER_BLOCKED"
     http_status: int = 422
 
-    def __init__()
+    def __init__(
+            self,
+            message : str = "Gatekeeper Blocked",
+            details: Optional[dict[str, Any]] = None,
+    ) -> None:
+        super.__init__(
+            message = message,
+            code = self.code,
+            details = details,
+            http_status = self.http_status
+        )
+
+class ImmutableRecordError(Exception):
+
+    def __init__(
+
+            self,
+            message: str = "Cannot modify or delete an immutable audit record."
+
+            ) -> None:
+
+
+        super().__init__(message)
+        self.message = message
+
+def domain_error_handler(request : Request, error : DomainError) -> JSONResponse:
+    return JSONResponse(
+            status == error.http_status,
+
+           content = {
+                "error":error.code,
+                "message" : error.message,
+                "details" : error.details
+                },
+            )
