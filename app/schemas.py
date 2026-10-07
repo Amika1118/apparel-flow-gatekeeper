@@ -1,3 +1,4 @@
+import datetime
 from decimal import Decimal
 from typing import Mapping, List, Text, Optional
 
@@ -116,3 +117,54 @@ class GateSummary(BaseSchema):
     uncounted: int
     can_approve: bool
 
+class VerificationLogOut(BaseSchema):
+    decision : str
+    verifier_name : str
+    timestamp : datetime
+    wastage_cap : Decimal
+    rejection_note : Optional[str] = None
+
+
+class OrderOut(BaseSchema):
+    id: int
+    order_no: str
+    status: str
+    recipe_code: str
+    recipe_name: str
+    target_qty: int
+    fabric_roll_id: str
+    actual_fabric_yds: Decimal
+    expected_fabric_yds: Optional[Decimal] = None
+    items: List[ItemOut]
+    latest_rejection_note: Optional[str] = None
+
+
+class CountResultOut(BaseSchema):
+    items: List[ItemOut]
+    summary: GateSummary
+
+
+class SewingQueueRow(BaseSchema):
+    id: int
+    order_no: str
+    recipe_name: str
+    target_qty: int
+    verified_by: str
+    verified_at: datetime
+    wastage_pct: Decimal
+
+class SewingBatchOut(BaseSchema):
+    id: int
+    order_no: str
+    recipe_name: str
+    target_qty: int
+    items: List[ItemOut]
+    log: VerificationLogOut
+    wastage_pct: Decimal
+    wastage_cap: Decimal
+    over_cap: bool = False
+
+    @model_validator(mode="after")
+    def calculate_over_cap(self) -> "SewingBatchOut":
+        self.over_cap = self.wastage_pct > self.wastage_cap
+        return self
