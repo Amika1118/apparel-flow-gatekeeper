@@ -1,7 +1,7 @@
 from decimal import Decimal
-from typing import Mapping, List, Text
+from typing import Mapping, List, Text, Optional
 
-from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator, ValidationError
+from pydantic import ConfigDict, BaseModel, EmailStr, Field, field_validator, ValidationError, model_validator
 from pydantic.v1 import StrictInt
 
 
@@ -78,5 +78,41 @@ class RejectRequest(BaseSchema):
         return value
 
 
+class ComponentOut(BaseSchema):
+    id : int
+    component_name : str
+    price_per_garment : int
+    image_url : Optional[str] = None
 
+class RecipeOut(BaseSchema):
+    id : int
+    recipe_code : int
+    name : str
+    category : str
+    std_fabric_yds : Decimal
+    wastage_cap : Decimal
+    components : List[ComponentOut]
+
+class ItemOut(BaseSchema):
+    component_id : int
+    component_name : str
+    image_url : Optional[str] = None
+    expected_qty : int
+    actual_qty : Optional[int] = None
+    variance : Optional[int] = None
+
+    @model_validator(mode="after")
+    def calculate_variance(self) -> "ItemOut":
+        if self.actual_qty is not None:
+            self.variance = (self.expected_qty - self.actual_qty)
+        else:
+            self.variance = None
+        return self
+
+class GateSummary(BaseSchema):
+    green: int
+    yellow: int
+    red: int
+    uncounted: int
+    can_approve: bool
 
