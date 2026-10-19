@@ -13,7 +13,7 @@ from app.security import decode_access_token
 def get_current_user(
     authorization: Union[str, None] = Header(None, alias="Authorization"),
     db: Session = Depends(get_db),
-) -> User:
+    ) -> User:
     """Extracts and verifies JWT bearer token from authorization header, returning the authenticated user."""
     if not authorization or not authorization.startswith("Bearer "):
         raise AuthenticationError("missing token")
