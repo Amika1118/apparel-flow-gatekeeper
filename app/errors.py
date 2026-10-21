@@ -120,7 +120,7 @@ class ValidationFailure(Exception):
             http_status = self.http_status
         )
 
-class GateKeeperViolation(Exception):
+class GatekeeperViolation(Exception):
     code: str = "GATEKEEPER_BLOCKED"
     http_status: int = 422
 
