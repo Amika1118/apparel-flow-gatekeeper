@@ -17,14 +17,15 @@ from app.schemas import OrderCreate
 from app.services.state_machine import apply_transition
 
 
-def generate_order_no(db : Session) -> str:
-    year = str(datetime.now(datetime.timezone.utc).year)
-    prefix = f"CO-{year}"
+def generate_order_no(db: Session) -> str:
+    """Generates a unique sequential cutting order number formatted as 'CO-YYYY-XXXX'."""
+    year = str(datetime.now(timezone.utc).year)
+    prefix = f"CO-{year}-"
 
     latest_order = (
         db.query(CuttingOrder)
-        .filter(CuttingOrder.order_no.like(f"%{prefix}%"))
-        .order_by(CuttingOrder.order_no.asc())
+        .filter(CuttingOrder.order_no.like(f"{prefix}%"))
+        .order_by(CuttingOrder.order_no.desc())
         .first()
     )
 
@@ -37,7 +38,8 @@ def generate_order_no(db : Session) -> str:
     return f"CO-{year}-{next_number:04d}"
 
 
-def find_own_order(db : Session, order_id : int, user : User) -> CuttingOrder:
+def find_own_order(db: Session, order_id: int, user: User) -> CuttingOrder:
+    """Retrieves an order belonging to the user. Raises NotFoundError if not found or unauthorized."""
     order = (
         db.query(CuttingOrder)
         .filter(CuttingOrder.id == order_id, CuttingOrder.created_by == user.id)
@@ -50,20 +52,21 @@ def find_own_order(db : Session, order_id : int, user : User) -> CuttingOrder:
     return order
 
 
-def create_order(db: Session, user : User, payload : OrderCreate) -> CuttingOrder:
+def create_order(db: Session, user: User, payload: OrderCreate) -> CuttingOrder:
+    """Creates a new cutting order along with its associated verification items."""
     recipe = db.query(Recipe).filter(Recipe.id == payload.recipe_id).first()
     if not recipe:
         raise NotFoundError("recipe not found")
 
     try:
         order = CuttingOrder(
-            order_no = generate_order_no(db),
-            recipe_id = recipe.id,
-            target_qty = payload.target_qty,
-            fabric_roll_id = payload.fabric_roll_id,
-            actual_fabric_yds = payload.actual_fabric_yds,
-            status = OrderStatus.CUTTING_IN_PROGRESS,
-            created_by = user.id,
+            order_no=generate_order_no(db),
+            recipe_id=recipe.id,
+            target_qty=payload.target_qty,
+            fabric_roll_id=payload.fabric_roll_id,
+            actual_fabric_yds=payload.actual_fabric_yds,
+            status=OrderStatus.CUTTING_IN_PROGRESS,
+            created_by=user.id,
         )
         db.add(order)
         db.flush()
@@ -81,14 +84,14 @@ def create_order(db: Session, user : User, payload : OrderCreate) -> CuttingOrde
         db.commit()
         db.refresh(order)
         return order
-
     except Exception:
         db.rollback()
         raise
 
 
-def submit_for_verification(db: Session, oder_id : int, user : User) -> CuttingOrder:
-    order = find_own_order(oder_id, user)
+def submit_for_verification(db: Session, order_id: int, user: User) -> CuttingOrder:
+    """Submits an order for verification, resetting item counts if previously rejected."""
+    order = find_own_order(db, order_id, user)
     was_rejected = order.status == OrderStatus.REJECTED
 
     apply_transition(order, OrderStatus.PENDING_VERIFICATION)
@@ -119,6 +122,7 @@ def _attach_latest_rejection_note(db: Session, order: CuttingOrder) -> None:
 
 
 def list_orders_for_supervisor(db: Session, user: User) -> List[CuttingOrder]:
+    """Lists all cutting orders created by the supervisor, newest first."""
     orders = (
         db.query(CuttingOrder)
         .filter(CuttingOrder.created_by == user.id)

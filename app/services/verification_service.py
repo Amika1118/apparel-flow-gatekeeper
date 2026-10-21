@@ -1,19 +1,32 @@
-from datetime import timezone, datetime
-from typing import List, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Tuple
 
-from altair import Order
 from sqlalchemy.orm import Session
 
-from app.errors import NotFoundError, InvalidStateError, ValidationFailure, GatekeeperViolation
-from app.models import OrderStatus, CuttingOrder, VerificationItem, VerificationLog, Decision, User
-from app.schemas import GateSummary, CountSubmission
+from app.errors import (
+    GatekeeperViolation,
+    InvalidStateError,
+    NotFoundError,
+    ValidationFailure,
+)
+from app.models import (
+    CuttingOrder,
+    Decision,
+    OrderStatus,
+    User,
+    VerificationItem,
+    VerificationLog,
+)
+from app.schemas import CountSubmission, GateSummary
 from app.services.state_machine import apply_transition
-from app.services.traffic_light import evaluate_order, evaluate
+from app.services.traffic_light import evaluate, evaluate_order
 from app.services.wastage import expected_fabric, wastage_pct
 
 COUNTING_STATES = [OrderStatus.PENDING_VERIFICATION, OrderStatus.COUNT_QC]
 
+
 def load_order_for_update(db: Session, order_id: int) -> CuttingOrder:
+    """Retrieves a cutting order and locks the row for update."""
     order = (
         db.query(CuttingOrder)
         .filter(CuttingOrder.id == order_id)
@@ -28,6 +41,7 @@ def load_order_for_update(db: Session, order_id: int) -> CuttingOrder:
 
 
 def list_pending(db: Session) -> List[CuttingOrder]:
+    """Lists all orders awaiting verification in FIFO order (oldest first)."""
     return (
         db.query(CuttingOrder)
         .filter(CuttingOrder.status.in_(COUNTING_STATES))
@@ -36,7 +50,9 @@ def list_pending(db: Session) -> List[CuttingOrder]:
     )
 
 
-def get_for_verification(db: Session, order_id: int) -> Tuple[CuttingOrder, GateSummary]:
+def get_for_verification(
+    db: Session, order_id: int
+) -> Tuple[CuttingOrder, GateSummary]:
     """Retrieves order details and gate summary evaluation for verification."""
     order = db.query(CuttingOrder).filter(CuttingOrder.id == order_id).first()
 
@@ -47,24 +63,26 @@ def get_for_verification(db: Session, order_id: int) -> Tuple[CuttingOrder, Gate
         raise InvalidStateError("order is not awaiting verification")
 
     summary, _ = evaluate_order(order.items)
-
     return order, summary
 
 
-def record_counts(db: Session, order_id : int, submission : CountSubmission) -> Tuple[List[VerificationItem], GateSummary]:
+def record_counts(
+    db: Session, order_id: int, submission: CountSubmission
+) -> Tuple[List[VerificationItem], GateSummary]:
+    """Records piece counts submitted by verifiers and updates order state if needed."""
     order = load_order_for_update(db, order_id)
 
     if order.status not in COUNTING_STATES:
         raise InvalidStateError("counts are frozen")
 
     valid_ids = {item.component_id for item in order.items}
-    submission_ids = (entry.component_id for entry in submission.entries)
+    submission_ids = {entry.component_id for entry in submission.counts}
     unknown = submission_ids - valid_ids
 
     if unknown:
         raise ValidationFailure(
             message="components do not belong to this order",
-            details={"unknown_component_ids" : list(unknown)},
+            details={"unknown_component_ids": list(unknown)},
         )
 
     try:

@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
+
 from app.models import TrafficFlag, VerificationItem
 from app.schemas import GateSummary
-
 
 def evaluate(expected: int, actual: Optional[int]) -> Union[TrafficFlag, str]:
     """Evaluates the traffic flag based on expected and actual quantities."""
