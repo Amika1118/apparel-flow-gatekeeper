@@ -1,11 +1,18 @@
-import datetime
-from typing import List
+from datetime import datetime, timezone
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
-from streamlit import status
-from tweepy import NotFound
 
-from app.models import CuttingOrder, User, Recipe, OrderStatus, VerificationItem, VerificationLog, Decision
+from app.errors import NotFoundError
+from app.models import (
+    CuttingOrder,
+    Decision,
+    OrderStatus,
+    Recipe,
+    User,
+    VerificationItem,
+    VerificationLog,
+)
 from app.schemas import OrderCreate
 from app.services.state_machine import apply_transition
 
@@ -38,7 +45,7 @@ def find_own_order(db : Session, order_id : int, user : User) -> CuttingOrder:
     )
 
     if not order:
-        raise NotFound("order not found")
+        raise NotFoundError("order not found")
 
     return order
 
@@ -46,7 +53,7 @@ def find_own_order(db : Session, order_id : int, user : User) -> CuttingOrder:
 def create_order(db: Session, user : User, payload : OrderCreate) -> CuttingOrder:
     recipe = db.query(Recipe).filter(Recipe.id == payload.recipe_id).first()
     if not recipe:
-        raise NotFound("recipe not found")
+        raise NotFoundError("recipe not found")
 
     try:
         order = CuttingOrder(
