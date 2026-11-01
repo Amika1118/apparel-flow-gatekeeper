@@ -1,5 +1,6 @@
+# app/services/verification_service.py
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -69,7 +70,7 @@ def get_for_verification(
 def record_counts(
     db: Session, order_id: int, submission: CountSubmission
 ) -> Tuple[List[VerificationItem], GateSummary]:
-    """Records piece counts submitted by verifiers and updates order state if needed."""
+    """Records piece counts submitted by verifiers and updates order state with concurrency safeguards."""
     order = load_order_for_update(db, order_id)
 
     if order.status not in COUNTING_STATES:
@@ -94,7 +95,19 @@ def record_counts(
             item.status = evaluate(item.expected_qty, item.actual_qty)
 
         if order.status == OrderStatus.PENDING_VERIFICATION:
-            apply_transition(order, OrderStatus.COUNT_QC)
+            rows_changed = (
+                db.query(CuttingOrder)
+                .filter(
+                    CuttingOrder.id == order.id,
+                    CuttingOrder.status == OrderStatus.PENDING_VERIFICATION,
+                )
+                .update(
+                    {"status": OrderStatus.COUNT_QC}, synchronize_session=False
+                )
+            )
+            if rows_changed != 1:
+                raise InvalidStateError("someone else changed this order")
+            order.status = OrderStatus.COUNT_QC
 
         summary, _ = evaluate_order(order.items)
         db.commit()
@@ -105,7 +118,7 @@ def record_counts(
 
 
 def approve(db: Session, order_id: int, verifier: User) -> CuttingOrder:
-    """Approves order verification after checking gatekeeper rule and calculating fabric wastage."""
+    """Approves order verification with optimistic concurrency control and wastage calculations."""
     order = load_order_for_update(db, order_id)
 
     # STEP 1: Verify valid state
@@ -124,12 +137,21 @@ def approve(db: Session, order_id: int, verifier: User) -> CuttingOrder:
     expected = expected_fabric(order.target_qty, order.recipe.std_fabric_yards)
     pct = wastage_pct(order.actual_fabric_yds, expected)
 
-    # STEP 4: Persist changes and create verification log entry
+    # STEP 4: Persist changes with atomic status update check
     try:
         for item in order.items:
             item.status = evaluate(item.expected_qty, item.actual_qty)
 
-        apply_transition(order, OrderStatus.VERIFIED)
+        rows_changed = (
+            db.query(CuttingOrder)
+            .filter(
+                CuttingOrder.id == order.id,
+                CuttingOrder.status == OrderStatus.COUNT_QC,
+            )
+            .update({"status": OrderStatus.VERIFIED}, synchronize_session=False)
+        )
+        if rows_changed != 1:
+            raise InvalidStateError("someone else changed this order")
 
         log_entry = VerificationLog(
             order_id=order.id,
@@ -151,7 +173,7 @@ def approve(db: Session, order_id: int, verifier: User) -> CuttingOrder:
 def reject(
     db: Session, order_id: int, verifier: User, note: str
 ) -> CuttingOrder:
-    """Rejects an order, setting status to REJECTED with a required reason note."""
+    """Rejects an order with atomic status update check and required reason note."""
     order = load_order_for_update(db, order_id)
 
     if order.status != OrderStatus.COUNT_QC:
@@ -162,7 +184,16 @@ def reject(
         raise ValidationFailure("rejection reason required")
 
     try:
-        apply_transition(order, OrderStatus.REJECTED)
+        rows_changed = (
+            db.query(CuttingOrder)
+            .filter(
+                CuttingOrder.id == order.id,
+                CuttingOrder.status == OrderStatus.COUNT_QC,
+            )
+            .update({"status": OrderStatus.REJECTED}, synchronize_session=False)
+        )
+        if rows_changed != 1:
+            raise InvalidStateError("someone else changed this order")
 
         log_entry = VerificationLog(
             order_id=order.id,
