@@ -1,13 +1,23 @@
-from asyncio import Queue
-from typing import Optional, List
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import CuttingOrder, VerificationLog, Decision, OrderStatus
-from app.schemas import SewingQueueRow
+from app.errors import NotFoundError
+from app.models import (
+    CuttingOrder,
+    Decision,
+    OrderStatus,
+    User,
+    VerificationLog,
+)
+from app.schemas import ItemOut, SewingBatchOut, SewingQueueRow
+from app.services.state_machine import apply_transition
+from app.services.traffic_light import variance
+from app.services.wastage import exceeds_cap
 
 
-def latest_verified(order: CuttingOrder) -> Optional[VerificationLog]:
+def latest_verified_log(order: CuttingOrder) -> Optional[VerificationLog]:
+    """Retrieves the newest verification log for an order where the decision was VERIFIED."""
     if not order.logs:
         return None
 
@@ -15,23 +25,23 @@ def latest_verified(order: CuttingOrder) -> Optional[VerificationLog]:
         log for log in order.logs
         if log.decision == Decision.VERIFIED
     ]
-
     if not verified_logs:
         return None
 
-    return max(verified_logs, key=lambda log: log.decision)
+    return max(verified_logs, key=lambda l: l.timestamp)
 
 
-def get_queue(db : Session) -> List[SewingQueueRow]:
+def get_queue(db: Session) -> List[SewingQueueRow]:
+    """Retrieves all verified orders ready for sewing assembly queue, sorted newest first."""
     orders = (
         db.query(CuttingOrder)
-        .filter(CuttingOrder.status == OrderStatus.QUEUED)
+        .filter(CuttingOrder.status == OrderStatus.VERIFIED)
         .all()
     )
 
     rows: List[SewingQueueRow] = []
     for order in orders:
-        log = latest_verified(order)
+        log = latest_verified_log(order)
         if not log:
             continue
 
@@ -39,13 +49,13 @@ def get_queue(db : Session) -> List[SewingQueueRow]:
 
         rows.append(
             SewingQueueRow(
-                id = order.id,
-                order_no = order.order_no,
-                recipe_name = order.recipe.name if order.recipe else "Unknown",
-                target_qty = order.target_qty,
-                verified_by = verifier_name,
-                verified_at = log.timestamp,
-                wastage_pct = log.wastage_pct,
+                id=order.id,
+                order_no=order.order_no,
+                recipe_name=order.recipe.name if order.recipe else "Unknown",
+                target_qty=order.target_qty,
+                verified_by=verifier_name,
+                verified_at=log.timestamp,
+                wastage_pct=log.wastage_pct,
             )
         )
 
@@ -53,3 +63,75 @@ def get_queue(db : Session) -> List[SewingQueueRow]:
     rows.sort(key=lambda r: r.verified_at, reverse=True)
     return rows
 
+
+def find_verified_order(db: Session, order_id: int) -> CuttingOrder:
+    """Finds a cutting order that is in VERIFIED status. Raises NotFoundError if missing or unverified."""
+    order = (
+        db.query(CuttingOrder)
+        .filter(CuttingOrder.id == order_id, CuttingOrder.status == OrderStatus.VERIFIED)
+        .first()
+    )
+
+    if not order:
+        raise NotFoundError("batch not found")
+
+    return order
+
+
+def get_batch_detail(db: Session, order_id: int) -> SewingBatchOut:
+    """Retrieves detailed batch information including items with variance and cap checks for sewing."""
+    order = find_verified_order(db, order_id)
+    log = latest_verified_log(order)
+
+    item_outs = []
+    for item in order.items:
+        comp_name = item.component.component_name if item.component else "Unknown"
+        v = variance(item.expected_qty, item.actual_qty)
+        item_outs.append(
+            ItemOut(
+                id=item.id,
+                component_id=item.component_id,
+                component_name=comp_name,
+                expected_qty=item.expected_qty,
+                actual_qty=item.actual_qty,
+                variance=v,
+                status=item.status,
+            )
+        )
+
+    wastage_percentage = log.wastage_pct if log and log.wastage_pct is not None else order.actual_fabric_yds  # fallback if needed
+    cap = order.recipe.wastage_cap if order.recipe else 0
+    is_over_cap = exceeds_cap(log.wastage_pct, cap) if log and log.wastage_pct is not None else False
+
+    return SewingBatchOut(
+        id=order.id,
+        order_no=order.order_no,
+        recipe_id=order.recipe_id,
+        recipe_name=order.recipe.name if order.recipe else "Unknown",
+        target_qty=order.target_qty,
+        fabric_roll_id=order.fabric_roll_id,
+        actual_fabric_yds=order.actual_fabric_yds,
+        expected_fabric_yds=order.expected_fabric_yds,
+        status=order.status,
+        created_at=order.created_at,
+        created_by=order.created_by,
+        items=item_outs,
+        verification_log=log,
+        wastage_pct=log.wastage_pct,
+        wastage_cap=cap,
+        over_cap=is_over_cap,
+    )
+
+
+def start_assembly(db: Session, order_id: int, user: User) -> CuttingOrder:
+    """Transitions a verified batch to sewing assembly, removing it from the active verification queue."""
+    order = find_verified_order(db, order_id)
+
+    try:
+        apply_transition(order, OrderStatus.IN_SEWING)
+        db.commit()
+        db.refresh(order)
+        return order
+    except Exception:
+        db.rollback()
+        raise
