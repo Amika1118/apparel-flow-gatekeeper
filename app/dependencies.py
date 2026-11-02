@@ -4,7 +4,7 @@ from fastapi.params import Depends, Header
 from redis import AuthenticationError
 from sqlalchemy.orm import Session
 
-from app.databse import get_db
+from app.database import get_db
 from app.errors import PermissionDenied
 from app.models import User, Role
 from app.security import decode_access_token

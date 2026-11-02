@@ -18,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, validates, relationship
 from sqlalchemy.testing.schema import mapped_column
 
-from app.databse import Base
+from app.database import Base
 from app.errors import ImmutableRecordError
 
 
