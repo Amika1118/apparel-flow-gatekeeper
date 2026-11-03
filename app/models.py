@@ -26,6 +26,7 @@ class Role(str, Enum):
     CUTTING_SUPERVISOR = "cutting_supervisor"
     CUTTING_VERIFIER = "cutting_verifier"
     SEWING_SUPERVISOR = "sewing_supervisor"
+    ADMIN = "admin"
 
 class OrderStatus(str, Enum):
     CUTTING_IN_PROGRESS = "cutting_in_progress"

@@ -10,6 +10,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+from app.models import Role
 
 
 class BaseSchema(BaseModel):
@@ -93,6 +94,13 @@ class RejectRequest(BaseSchema):
 # ---------------------------------------------------------------------------
 # Output Shapes (API Response Models)
 # ---------------------------------------------------------------------------
+
+class UserOut(BaseSchema):
+    id: int
+    email: str
+    full_name: str
+    role: Role
+    created_at: datetime
 
 class ComponentOut(BaseSchema):
     id: int
