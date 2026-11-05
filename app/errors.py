@@ -1,7 +1,6 @@
 from typing import Any,Optional
 from fastapi import Request
 from starlette.responses import JSONResponse
-from streamlit import status
 
 
 class DomainError(Exception):
@@ -46,7 +45,7 @@ class AuthenticationError(Exception):
             details: Optional[dict[str, Any]] = None,
     ) -> None:
 
-        super.__init__(
+        super().__init__(
             message = message,
             code = self.code,
             details = details,
@@ -63,7 +62,7 @@ class PermissionDenied(Exception):
             details: Optional[dict[str, Any]] = None,
     ) -> None:
 
-        super.__init__(
+        super().__init__(
             message = message,
             code = self.code,
             details = details,
@@ -80,7 +79,7 @@ class NotFoundError(Exception):
             details: Optional[dict[str, Any]] = None,
     ) -> None:
 
-        super.__init__(
+        super().__init__(
             message = message,
             code = self.code,
             details = details,
@@ -97,11 +96,11 @@ class InvalidStateError(Exception):
             details: Optional[dict[str, Any]] = None,
     ) -> None:
 
-        super.__init__(
+        super().__init__(
             message = message,
             code = self.code,
             details = details,
-            http_satus = self.http_status
+            http_status = self.http_status
         )
 
 class ValidationFailure(Exception):
@@ -113,7 +112,7 @@ class ValidationFailure(Exception):
             message : str = "Validation Failed",
             details: Optional[dict[str, Any]] = None,
     ) -> None:
-        super.__init__(
+        super().__init__(
             message = message,
             code = self.code,
             details = details,
@@ -129,7 +128,7 @@ class GatekeeperViolation(Exception):
             message : str = "Gatekeeper Blocked",
             details: Optional[dict[str, Any]] = None,
     ) -> None:
-        super.__init__(
+        super().__init__(
             message = message,
             code = self.code,
             details = details,
@@ -151,7 +150,7 @@ class ImmutableRecordError(Exception):
 
 def domain_error_handler(request : Request, error : DomainError) -> JSONResponse:
     return JSONResponse(
-            status == error.http_status,
+            status_code=error.http_status,
 
            content = {
                 "error":error.code,

@@ -15,8 +15,7 @@ from sqlalchemy import (
     event,
 )
 
-from sqlalchemy.orm import Mapped, validates, relationship
-from sqlalchemy.testing.schema import mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates, relationship
 
 from app.database import Base
 from app.errors import ImmutableRecordError
@@ -48,14 +47,14 @@ class Decision(str, Enum):
 class User(Base):
     __tablename__ = "users"
 
-    id : Mapped[int] = mapped_column(primary_key=True, auto_increment=True)
+    id : Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     email : Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash : Mapped[str] = mapped_column(String(255), nullable=False)
     role : Mapped[Role] = mapped_column(SQLEnum(Role), nullable=False)
     full_name : Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at : Mapped[datetime] = mapped_column(
+    created_at : Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
         nullable=False,
     )
 
@@ -73,7 +72,7 @@ class Recipe(Base):
         CheckConstraint("wastage_cap >= 0", name="check_wastage_cap_non_negative"),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, auto_incremrnt=True)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     recipie_code : Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     name : Mapped[str] = mapped_column(String(255), nullable=False)
     category : Mapped[str] = mapped_column(String(255), nullable=False)
@@ -86,7 +85,7 @@ class Recipe(Base):
 
 
 class RecipeComponent(Base):
-    __table__ = "recipe_components"
+    __tablename__ = "recipe_components"
     __table_args__ = (
         UniqueConstraint("recipe_id", "component_name", name="uq_recipe_component_name"),
         CheckConstraint("pieces_per_garment >= 1", name="check_pieces_per_garment_gte_one"),
@@ -102,7 +101,7 @@ class RecipeComponent(Base):
 
 
 class CuttingOrder(Base):
-    __table__ = "cutting_orders"
+    __tablename__ = "cutting_orders"
     __table_args__ = (
         CheckConstraint("target_qty >= 1", name="check_target_qty_gte_one"),
         CheckConstraint("actual_fabric_yds > 0", name="check_actual_fabric_yds_positive"),
@@ -114,17 +113,17 @@ class CuttingOrder(Base):
     target_qty : Mapped[int] = mapped_column(nullable=False)
     fabric_roll_id : Mapped[str] = mapped_column(String(255), nullable=False)
     actual_fabric_yds : Mapped[Decimal] = mapped_column(Numeric(8, 2), nullable=False)
-    status : OrderStatus = mapped_column(OrderStatus, nullable=False)
+    status : Mapped[OrderStatus] = mapped_column(SQLEnum(OrderStatus), nullable=False)
     created_by : Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
-    created_at : Mapped[datetime] = mapped_column(
+    created_at : Mapped[datetime.datetime] = mapped_column(
                                     DateTime(timezone=True),
-                                    default=lambda : datetime.now(datetime.timezone.utc),
+                                    default=lambda : datetime.datetime.now(datetime.timezone.utc),
                                     nullable=False,
                                     )
-    updated_at : Mapped[datetime] = mapped_column(
+    updated_at : Mapped[datetime.datetime] = mapped_column(
                                     DateTime(timezone=True),
-                                    default=lambda : datetime.now(datetime.timezone.utc),
-                                    onupdate=lambda : datetime.now(datetime.timezone.utc),
+                                    default=lambda : datetime.datetime.now(datetime.timezone.utc),
+                                    onupdate=lambda : datetime.datetime.now(datetime.timezone.utc),
                                     nullable=False,
                                     )
 
@@ -175,9 +174,9 @@ class VerificationLog(Base):
     decision : Mapped[Decision] = mapped_column(nullable=False)
     rejection_note : Mapped[Optional[str]] = mapped_column(Text,nullable=True)
     wastage_pct : Mapped[Optional[Decimal]] = mapped_column(Numeric(6, 2), nullable=False)
-    timestamp : Mapped[datetime] = mapped_column(
+    timestamp : Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(datetime.timezone.utc),
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
         nullable=False,
     )
 
