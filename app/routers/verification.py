@@ -1,4 +1,3 @@
-# app/routers/verification.py
 from typing import List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
