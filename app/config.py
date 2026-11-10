@@ -16,10 +16,10 @@ class Settings:
 
 
     def validate(self):
-        if self.JWT_SECRET_KEY:
+        if not self.JWT_SECRET_KEY:
             raise Exception('JWT_SECRET_KEY must be set')
         if self.ENVIRONMENT != 'development' and self.JWT_SECRET_KEY in self.PLACEHOLDER_SECRET:
             raise Exception("set a real JWT_SECRET_KEY")
-        if self.DEMO_PASSWORD :
+        if not self.DEMO_PASSWORD:
             raise Exception('DEMO_PASSWORD must be set')
 

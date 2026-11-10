@@ -1,11 +1,10 @@
 from typing import Union, List, Callable
 
 from fastapi.params import Depends, Header
-from redis import AuthenticationError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.errors import PermissionDenied
+from app.errors import AuthenticationError, PermissionDenied
 from app.models import User, Role
 from app.security import decode_access_token
 
@@ -32,7 +31,7 @@ def get_current_user(
     token_role = package.get("role")
     user_role_str = user.role.value if isinstance(user.role, Role) else str(user.role)
 
-    if user_role_str == token_role:
+    if user_role_str != token_role:
         raise AuthenticationError("token is out of date")
 
     return user

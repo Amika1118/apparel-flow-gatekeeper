@@ -10,7 +10,7 @@ from app.models import (
     User,
     VerificationLog,
 )
-from app.schemas import ItemOut, SewingBatchOut, SewingQueueRow
+from app.schemas import ItemOut, SewingBatchOut, SewingQueueRow, VerificationLogOut
 from app.services.state_machine import apply_transition
 from app.services.traffic_light import variance
 from app.services.wastage import exceeds_cap
@@ -89,13 +89,11 @@ def get_batch_detail(db: Session, order_id: int) -> SewingBatchOut:
         v = variance(item.expected_qty, item.actual_qty)
         item_outs.append(
             ItemOut(
-                id=item.id,
                 component_id=item.component_id,
                 component_name=comp_name,
                 expected_qty=item.expected_qty,
                 actual_qty=item.actual_qty,
                 variance=v,
-                status=item.status,
             )
         )
 
@@ -106,18 +104,17 @@ def get_batch_detail(db: Session, order_id: int) -> SewingBatchOut:
     return SewingBatchOut(
         id=order.id,
         order_no=order.order_no,
-        recipe_id=order.recipe_id,
         recipe_name=order.recipe.name if order.recipe else "Unknown",
         target_qty=order.target_qty,
-        fabric_roll_id=order.fabric_roll_id,
-        actual_fabric_yds=order.actual_fabric_yds,
-        expected_fabric_yds=order.expected_fabric_yds,
-        status=order.status,
-        created_at=order.created_at,
-        created_by=order.created_by,
         items=item_outs,
-        verification_log=log,
-        wastage_pct=log.wastage_pct,
+        log=VerificationLogOut(
+            decision=log.decision.value if log else "",
+            verifier_name=log.verifier.full_name if log and log.verifier else "Unknown",
+            timestamp=log.timestamp if log else None,
+            wastage_pct=log.wastage_pct if log else 0,
+            rejection_note=log.rejection_note if log else None,
+        ),
+        wastage_pct=log.wastage_pct if log else 0,
         wastage_cap=cap,
         over_cap=is_over_cap,
     )

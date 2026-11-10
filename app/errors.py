@@ -35,7 +35,7 @@ class DomainError(Exception):
         }
 
 
-class AuthenticationError(Exception):
+class AuthenticationError(DomainError):
     code: str = "AUTHENTICATION_ERROR"
     http_status: int = 401
 
@@ -52,7 +52,7 @@ class AuthenticationError(Exception):
             http_status = self.http_status,
         )
 
-class PermissionDenied(Exception):
+class PermissionDenied(DomainError):
     code: str = "PERMISSION_DENIED"
     http_status: int = 403
 
@@ -69,7 +69,7 @@ class PermissionDenied(Exception):
             http_status = self.http_status
         )
 
-class NotFoundError(Exception):
+class NotFoundError(DomainError):
     code: str = "NOT_FOUND"
     http_status: int = 404
 
@@ -86,7 +86,7 @@ class NotFoundError(Exception):
             http_status = self.http_status
         )
 
-class InvalidStateError(Exception):
+class InvalidStateError(DomainError):
     code: str = "INVALID_STATE"
     http_status: int = 409
 
@@ -103,7 +103,7 @@ class InvalidStateError(Exception):
             http_status = self.http_status
         )
 
-class ValidationFailure(Exception):
+class ValidationFailure(DomainError):
     code: str = "VALIDATION_FAILED"
     http_status: int = 422
 
@@ -119,7 +119,7 @@ class ValidationFailure(Exception):
             http_status = self.http_status
         )
 
-class GatekeeperViolation(Exception):
+class GatekeeperViolation(DomainError):
     code: str = "GATEKEEPER_BLOCKED"
     http_status: int = 422
 

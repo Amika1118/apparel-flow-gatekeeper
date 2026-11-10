@@ -16,7 +16,7 @@ from app.services.order_service import (
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 # Every route below requires cutting_supervisor role
-SUPERVISOR_DEP = Depends(require_role(Role.CUTTING_SUPERVISOR))
+SUPERVISOR_DEP = Depends(require_role([Role.CUTTING_SUPERVISOR]))
 
 
 @router.post("", response_model=OrderOut, status_code=status.HTTP_201_CREATED)

@@ -22,7 +22,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 
     token = create_access_token(user.id, user.role)
     return TokenResponse(
-        token=token,
+        access_token=token,
         token_type="bearer",
         role=user.role,
         full_name=user.full_name,

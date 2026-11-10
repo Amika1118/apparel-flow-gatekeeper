@@ -91,7 +91,7 @@ class RecipeComponent(Base):
         CheckConstraint("pieces_per_garment >= 1", name="check_pieces_per_garment_gte_one"),
     )
 
-    id : Mapped[int] = mapped_column(primary_key=True, auto_increment=True)
+    id : Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     recipe_id : Mapped[int] = mapped_column(ForeignKey("recipes.id"), nullable=False)
     component_name : Mapped[str] = mapped_column(String(255), nullable=False)
     pieces_per_garment : Mapped[int] = mapped_column(nullable=False)
@@ -107,7 +107,7 @@ class CuttingOrder(Base):
         CheckConstraint("actual_fabric_yds > 0", name="check_actual_fabric_yds_positive"),
     )
 
-    id : Mapped[int] = mapped_column(primary_key=True, auto_increment=True)
+    id : Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     order_no : Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     recipe_id : Mapped[int] = mapped_column(ForeignKey("recipes.id"), nullable=False)
     target_qty : Mapped[int] = mapped_column(nullable=False)

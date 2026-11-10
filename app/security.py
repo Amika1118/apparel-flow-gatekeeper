@@ -17,7 +17,7 @@ def verify_password(plain_password: str, stored_hash: str) -> bool:
     return pwd_context.verify(plain_password, stored_hash)
 
 def create_access_token(user_id: Union[int, str], role: str) -> str:
-    now = datetime.datetime.utcnow()
+    now = datetime.utcnow()
     role_str = role.value if hasattr(role, "value") else role
 
     payload = {
